@@ -1,0 +1,19 @@
+listenfd = socket()
+
+
+epollfd=epollceate()
+
+
+events(connfd list)
+
+epollwait(epollfd,&events)
+
+
+connfd=accept(listenfd)
+
+
+最开始 new 全局 socketfd 和 epollfd
+
+然后开两个线程，
+一个 accept 获取 connfd，然后添加到 epollctl 中
+一个 epollwait，取 coonfd 集合，取出来读写数据操作，并继续把 coonfd 放入到 epollctl 中
