@@ -5,20 +5,16 @@
 // @description:
 package net
 
-import "net"
+import (
+	"strconv"
+)
 
-type Addr interface {
-	Network() string // name of the network (for example, "tcp", "udp")
-	String() string  // string form of address (for example, "192.0.2.1:25", "[2001:db8::1]:80")
-}
-
-type IP []byte
-
-type TCPAddr struct {
-	IP   IP
-	Port int
-	Zone string // IPv6 scoped addressing zone
-}
+var (
+	// 支持的协议
+	validProtocol = map[string]bool{
+		"tcp": true, "TCP": true, "UDP": true, "udp": true,
+	}
+)
 
 type Listener interface {
 	Accept() (Conn, error)
@@ -26,50 +22,33 @@ type Listener interface {
 	Close() error
 
 	Addr() Addr
-}
 
-type TCPListener struct {
-	network string
-	address string
-}
-
-func NewTCPListener(network string, address string) *TCPListener {
-	return &TCPListener{network: network, address: address}
-}
-
-func (T TCPListener) Accept() (Conn, error) {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (T TCPListener) Close() error {
-	//TODO implement me
-	panic("implement me")
-}
-
-func (T TCPListener) Addr() Addr {
-	//TODO implement me
-	panic("implement me")
+	init() error
 }
 
 // Listen case: tcp,127.0.0.1:8080
-func Listen(network, address string) (Listener, error) {
-	var l Listener
-
-	if err := check(network, address); err != nil {
-		return nil, err
+func Listen(protocol, address string) (l Listener, err error) {
+	host, port, err := addrHandle(protocol, address)
+	if err != nil {
+		return
 	}
 
-	switch network {
+	switch protocol {
 	case "tcp":
-		l = NewTCPListener(network, address)
+		t, err := strconv.Atoi(port)
+		if err != nil {
+			return nil, err
+		}
+		l = NewTCPListener(NewTCPAddr("tcp", t, host))
 	case "udp":
+		l = nil
+	case "unix":
 		l = nil
 	}
 
-	return l, nil
-}
+	if err = l.init(); err != nil {
+		return
+	}
 
-func check(network, address string) error {
-	net.Listen()
+	return
 }

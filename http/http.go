@@ -6,10 +6,15 @@
 package http
 
 type Request struct{}
+
 type Response struct{}
+
 type Server struct{}
+
 type Cookie struct{}
+
 type Handler interface {
 }
+
 type Coon struct {
 }

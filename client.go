@@ -2,18 +2,14 @@ package main
 
 import (
 	"fmt"
-	"net"
-)
-
-var (
-	addr = "127.0.0.1:9091"
+	"webserver/net"
 )
 
 func main() {
-	conn, err := net.Dial("tcp", addr)
+	conn, err := net.Dial("tcp", "127.0.0.1:1234")
 	if err != nil {
-		fmt.Println("dial err", err)
-		return
+		panic(err)
 	}
-	conn.Write([]byte("hello world"))
+	fmt.Println(conn.LocalAddr())
+	fmt.Println(conn.RemoteAddr())
 }
