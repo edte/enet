@@ -1,4 +1,4 @@
-// @program:     webserver
+// @program:     enet
 // @file:        dail.go
 // @author:      edte
 // @create:      2022-04-10 17:16

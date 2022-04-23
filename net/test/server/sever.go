@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"webserver/net"
+	"github.com/edte/enet/net"
 )
 
 func main() {
