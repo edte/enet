@@ -11,59 +11,141 @@ import (
 	"syscall"
 )
 
-func createSocket(pro string, host string, port int, backlog int) (fd int, err error) {
-	if pro == "tcp" || pro == "TCP" {
-		fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
-	} else {
-		return 0, errors.New("not supported protocol")
-	}
-	if err != nil {
-		return 0, err
-	}
-	addr := syscall.SockaddrInet4{
-		Port: port,
-	}
-	copy(addr.Addr[:], net.ParseIP(host))
+type SocketOption func(socket *Socket) error
 
-	// 设置非阻塞 socket
-	// todo: tcp 默认为阻塞还是非阻塞
-	//if err = syscall.SetNonblock(fd, true); err != nil {
-	//	return 0, err
-	//}
+type Socket struct {
+	fd      int
+	backlog int // 全连接队列长度
 
-	// client close 后，server 会等待 2msl，调试不方便，故先直接设置 REUSE_ADDR，可以立刻开新连接
-	if err = syscall.SetsockoptInt(fd, syscall.SOL_SOCKET, syscall.SO_REUSEADDR, -1); err != nil {
-		return 0, nil
-	}
-
-	if err = syscall.Bind(fd, &addr); err != nil {
-		return 0, err
-	}
-
-	if err = syscall.Listen(fd, backlog); err != nil {
-		return 0, err
-	}
-
-	return fd, nil
+	localAdder  Addr
+	remoteAdder Addr
 }
 
-func dialSocket(pro string, host string, port int) (fd int, err error) {
-	if pro == "tcp" || pro == "TCP" {
-		fd, err = syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
-	} else {
-		return 0, errors.New("not supported protocol")
+func NewSocket(protocol string, ip string, port int, opts ...SocketOption) (s *Socket, err error) {
+	s = &Socket{
+		fd: 0,
+		remoteAdder: &addr{
+			host:     ip,
+			port:     port,
+			protocol: protocol,
+		},
 	}
+
+	fd, err := s.createSocket()
 	if err != nil {
+		return nil, err
+	}
+
+	s.fd = fd
+
+	for _, opt := range opts {
+		if err = opt(s); err != nil {
+			return nil, err
+		}
+	}
+
+	return s, nil
+}
+
+func WithSocketBlock(flag bool) SocketOption {
+	return func(s *Socket) error {
+		return syscall.SetNonblock(s.fd, flag)
+	}
+}
+
+func WithSocketReUseAddr() SocketOption {
+	return func(s *Socket) error {
+		return s.setSocket(syscall.SO_REUSEADDR, 4)
+	}
+}
+
+func WithSocketReUsePort() SocketOption {
+	return func(s *Socket) error {
+		return s.setSocket(0xf, 4)
+	}
+}
+
+func WithSocketBacklog(b int) SocketOption {
+	return func(s *Socket) error {
+		s.backlog = b
+		return nil
+	}
+}
+
+func (s *Socket) bind() error {
+	return syscall.Bind(s.fd, s.addr())
+}
+
+func (s *Socket) addr() *syscall.SockaddrInet4 {
+	addr := syscall.SockaddrInet4{
+		Port: s.remoteAdder.Port(),
+	}
+	copy(addr.Addr[:], net.ParseIP(s.remoteAdder.Host()))
+	return &addr
+}
+
+func (s *Socket) listen() error {
+	return syscall.Listen(s.fd, s.backlog)
+}
+
+func (s *Socket) connect() error {
+	return syscall.Connect(s.fd, s.addr())
+}
+
+func (s *Socket) accept() (fd int, err error) {
+	fd, _, err = syscall.Accept(s.fd)
+	return
+}
+
+func (s *Socket) Close() error {
+	return syscall.Close(s.fd)
+}
+
+func (s *Socket) createSocket() (fd int, err error) {
+	if s.remoteAdder.Protocol() == "tcp" || s.remoteAdder.Protocol() == "TCP" {
+		return syscall.Socket(syscall.AF_INET, syscall.SOCK_STREAM, syscall.IPPROTO_TCP)
+	}
+
+	if s.remoteAdder.Protocol() == "udp" || s.remoteAdder.Protocol() == "UDP" {
+		return syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	}
+
+	return 0, errors.New("not supported protocol")
+}
+
+func (s *Socket) setSocket(opt int, val int) error {
+	return syscall.SetsockoptInt(s.fd, syscall.SOL_SOCKET, opt, val)
+}
+
+func (s *Socket) LocalAddr() Addr {
+	//syscall.Getsockname()
+	//syscall.Getpeername()
+
+	return s.localAdder
+}
+
+func (s *Socket) RemoteAddr() Addr {
+	return s.remoteAdder
+}
+
+func (s *Socket) Listen() (err error) {
+	if err = s.bind(); err != nil {
 		return
 	}
-	addr := syscall.SockaddrInet4{
-		Port: port,
+	if err = s.listen(); err != nil {
+		return
 	}
-	copy(addr.Addr[:], net.ParseIP(host))
+	return nil
+}
 
-	if err := syscall.Connect(fd, &addr); err != nil {
-		return 0, err
-	}
+func (s *Socket) Accept() (fd int, err error) {
+	return s.accept()
+}
 
-	return fd, nil
+func (s *Socket) Dial() error {
+	return s.connect()
+}
+
+func (s *Socket) FD() int {
+	return s.fd
 }

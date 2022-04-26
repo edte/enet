@@ -8,16 +8,39 @@ package net
 import (
 	"errors"
 	"net"
+	"strconv"
 	"strings"
 	"syscall"
 )
 
 // Addr 地址处理
 type Addr interface {
-	Protocol() string
-	Host() string
-	Port() int
+	Protocol() string // tcp、udp
+	Host() string     // ip
+	Port() int        // :8080
 	String() string
+}
+
+type addr struct {
+	host     string
+	port     int
+	protocol string
+}
+
+func (a addr) Protocol() string {
+	return a.protocol
+}
+
+func (a addr) Host() string {
+	return a.host
+}
+
+func (a addr) Port() int {
+	return a.port
+}
+
+func (a addr) String() string {
+	return a.host + strconv.Itoa(a.port)
 }
 
 func toAddr(sa syscall.Sockaddr) Addr {

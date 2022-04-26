@@ -58,7 +58,9 @@ func NewTCPListener(localAddr *TCPAddr) *TCPListener {
 }
 
 func (T *TCPListener) init() error {
-	fd, err := createSocket(T.localAddr.protocol, T.localAddr.host, T.localAddr.port, T.backlog)
+	//fd, err := CreateSocket(T.localAddr.protocol, T.localAddr.host, T.localAddr.port, T.backlog)
+	fd := 0
+	var err error
 	if err != nil {
 		return err
 	}
@@ -129,7 +131,8 @@ func NewTCPDial(remoteAddr *TCPAddr) *TCPDial {
 }
 
 func (T *TCPDial) Dail() (conn Conn, err error) {
-	fd, err := dialSocket(T.remoteAddr.protocol, T.remoteAddr.host, T.remoteAddr.port)
+	//fd, err := DialSocket(T.remoteAddr.protocol, T.remoteAddr.host, T.remoteAddr.port)
+	fd := 0
 	if err != nil {
 		return nil, err
 	}
