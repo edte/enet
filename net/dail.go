@@ -5,16 +5,12 @@
 // @description:
 package net
 
-import (
-	"strconv"
-)
-
 type dailer interface {
 	Dail() (conn Conn, err error)
 }
 
 func Dial(protocol, address string) (conn Conn, err error) {
-	host, port, err := addrHandle(protocol, address)
+	addr, err := addrHandle(protocol, address)
 	if err != nil {
 		return
 	}
@@ -23,11 +19,7 @@ func Dial(protocol, address string) (conn Conn, err error) {
 
 	switch protocol {
 	case "tcp":
-		t, err := strconv.Atoi(port)
-		if err != nil {
-			return nil, err
-		}
-		d = NewTCPDial(NewTCPAddr("tcp", t, host))
+		d = NewTCPDial(addr)
 	case "udp":
 		d = nil
 	case "unix":

@@ -27,20 +27,40 @@ type addr struct {
 	protocol string
 }
 
-func (a addr) Protocol() string {
+func NewAddr(protocol string, host string, port int) *addr {
+	return &addr{protocol: protocol, port: port, host: host}
+}
+
+func (a *addr) Protocol() string {
 	return a.protocol
 }
 
-func (a addr) Host() string {
+func (a *addr) Host() string {
 	return a.host
 }
 
-func (a addr) Port() int {
+func (a *addr) Port() int {
 	return a.port
 }
 
-func (a addr) String() string {
+func (a *addr) String() string {
 	return a.host + strconv.Itoa(a.port)
+}
+
+func addrHandle(protocol, address string) (addr *addr, err error) {
+	if !validProtocol[protocol] {
+		return nil, errors.New("not support protocol")
+	}
+
+	s := strings.Split(address, ":")
+
+	t, err := strconv.Atoi(s[1])
+	if err != nil {
+		return
+	}
+	addr = NewAddr(protocol, s[0], t)
+
+	return
 }
 
 func toAddr(sa syscall.Sockaddr) Addr {
@@ -48,13 +68,5 @@ func toAddr(sa syscall.Sockaddr) Addr {
 	n := net.IPAddr{
 		IP: i.Addr[:],
 	}
-	return NewTCPAddr("tcp", i.Port, n.String())
-}
-
-func addrHandle(protocol, address string) (host, port string, err error) {
-	if !validProtocol[protocol] {
-		return "", "", errors.New("not support protocol")
-	}
-	s := strings.Split(address, ":")
-	return s[0], s[1], nil
+	return NewAddr("tcp", n.String(), i.Port)
 }

@@ -5,83 +5,42 @@
 // @description:
 package net
 
-import (
-	"strconv"
-	"syscall"
-)
-
-var (
-	// 默认 TCP 全连接队列长度
-	defaultTCPBacklog = 100
-)
-
-// TCPAddr 表示 tcp 地址
-type TCPAddr struct {
-	protocol string
-	port     int
-	host     string
-}
-
-func NewTCPAddr(protocol string, port int, host string) *TCPAddr {
-	return &TCPAddr{protocol: protocol, port: port, host: host}
-}
-
-func (T *TCPAddr) Protocol() string {
-	return T.protocol
-}
-
-func (T *TCPAddr) Host() string {
-	return T.host
-}
-
-func (T *TCPAddr) Port() int {
-	return T.port
-}
-
-func (T *TCPAddr) String() string {
-	return T.host + strconv.Itoa(T.port)
-}
-
 // TCPListener TCP 监听器
 type TCPListener struct {
-	localAddr  *TCPAddr
-	remoteAddr *TCPAddr
-	backlog    int
-	fd         int
+	socket    *Socket
+	localAddr Addr
 }
 
-func NewTCPListener(localAddr *TCPAddr) *TCPListener {
-	return &TCPListener{
-		localAddr: localAddr,
-		backlog:   defaultTCPBacklog,
+func NewTCPListener(a *addr) (Listener, error) {
+	l := &TCPListener{
+		localAddr: a,
 	}
-}
 
-func (T *TCPListener) init() error {
-	//fd, err := CreateSocket(T.localAddr.protocol, T.localAddr.host, T.localAddr.port, T.backlog)
-	fd := 0
-	var err error
-	if err != nil {
-		return err
-	}
-	T.fd = fd
-	return nil
-}
-
-func (T *TCPListener) Accept() (Conn, error) {
-	fd, addr, err := syscall.Accept(T.fd)
+	socket, err := NewSocket(WithSocketLocalAddr(a))
 	if err != nil {
 		return nil, err
 	}
-	T.remoteAddr = toAddr(addr).(*TCPAddr)
-	return NewTCPCoon(T.localAddr, T.remoteAddr, fd), nil
+
+	if err = socket.Listen(); err != nil {
+		return nil, err
+	}
+
+	l.socket = socket
+
+	return l, nil
+}
+
+func (T *TCPListener) Accept() (Conn, error) {
+	socket, err := T.socket.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	return NewTCPCoon(socket), nil
 }
 
 func (T *TCPListener) Close() error {
-	if err := syscall.Close(T.fd); err != nil {
-		return err
-	}
-	return nil
+	return T.socket.Close()
 }
 
 func (T *TCPListener) Addr() Addr {
@@ -90,58 +49,53 @@ func (T *TCPListener) Addr() Addr {
 
 // TCPCoon tcp 连接
 type TCPCoon struct {
-	localAddr  Addr
-	remoteAddr Addr
-	fd         int
+	socket *Socket
 }
 
-func NewTCPCoon(localAddr Addr, remoteAddr Addr, fd int) *TCPCoon {
-	return &TCPCoon{localAddr: localAddr, remoteAddr: remoteAddr, fd: fd}
+func NewTCPCoon(s *Socket) *TCPCoon {
+	return &TCPCoon{socket: s}
 }
 
 func (T *TCPCoon) Read(b []byte) (n int, err error) {
-	return syscall.Read(T.fd, b)
+	return T.socket.Read(b)
 }
 
 func (T *TCPCoon) Write(b []byte) (n int, err error) {
-	return syscall.Write(T.fd, b)
+	return T.socket.Write(b)
 }
 
 func (T *TCPCoon) Close() error {
-	return syscall.Close(T.fd)
+	return T.socket.Close()
 }
 
 func (T *TCPCoon) LocalAddr() Addr {
-	return T.localAddr
+	return T.socket.LocalAddr()
 }
 
 func (T *TCPCoon) RemoteAddr() Addr {
-	return T.remoteAddr
+	return T.socket.RemoteAddr()
 }
 
 // TCPDial tcp 拨号器
 type TCPDial struct {
-	localAddr  *TCPAddr
-	remoteAddr *TCPAddr
-	fd         int
+	socket     *Socket
+	remoteAddr *addr
 }
 
-func NewTCPDial(remoteAddr *TCPAddr) *TCPDial {
+func NewTCPDial(remoteAddr *addr) *TCPDial {
 	return &TCPDial{remoteAddr: remoteAddr}
 }
 
 func (T *TCPDial) Dail() (conn Conn, err error) {
-	//fd, err := DialSocket(T.remoteAddr.protocol, T.remoteAddr.host, T.remoteAddr.port)
-	fd := 0
+	s, err := NewSocket(WithSocketRemoteAddr(T.remoteAddr))
 	if err != nil {
 		return nil, err
 	}
-	T.fd = fd
-	// 获取本地地址
-	name, err := syscall.Getsockname(fd)
-	if err != nil {
+	T.socket = s
+
+	if err = s.Dial(); err != nil {
 		return nil, err
 	}
-	T.localAddr = toAddr(name).(*TCPAddr)
-	return NewTCPCoon(T.localAddr, T.remoteAddr, T.fd), nil
+
+	return NewTCPCoon(s), nil
 }
